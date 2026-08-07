@@ -1,0 +1,21 @@
+Graph Coder Nano
+Copyright (c) 2026 Graph Coder Nano contributors
+
+This project is the smallest form of Graph Coder: the meta system, plus the
+corrections collected across real runs, in one skill file with no tooling. Its
+three phases, three roles, single manager review gate, contract fields, dispatch
+mechanics, and budget rules are carried over from Graph Coder Lite. What is not
+carried over is everything that enforced them mechanically: the `gcl` CLI and its
+readiness checks, the JSON run state and recovery, approval bound to a contract
+hash, and the recorded usage ledger. Enforcement moves to the Director.
+
+Graph Coder Lite
+https://github.com/lucadominguez/graph-coder-lite
+
+Graph Coder
+https://github.com/lucadominguez/graph-coder
+
+Graph Coder itself derives from the Agent Planning System:
+https://github.com/lucadominguez/agent-planning-system
+
+All are MIT licensed.
