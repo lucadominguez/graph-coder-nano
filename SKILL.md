@@ -83,6 +83,7 @@ artifacts: [src/store/tokens.py, tests/test_token_store.py]
 output_contract:
   - revoke_token and is_revoked are importable from src/store/tokens.py.
   - A second revoke on the same token leaves exactly one audit row.
+  - The audit rows read back through is_revoked, not only through raw SQL.
 progress: writes incrementally, a checkpoint per function, no command over 180s
 route: <model> / fallback <model>
 manager: M-STORAGE
@@ -102,9 +103,8 @@ model: detailed contracts are what make cheap workers viable.
   the contract says what has to be inside it, as assertions someone else can
   check without trusting the worker. A unit that says "scrape the listings and
   submit a report" is satisfied by a scraper that returns nothing: the code ran,
-  the file exists, and no criterion described the contents. State the fields that
-  must be present, that the result is non-empty, and the bounds a plausible
-  result falls within. Prefer an assertion a command can decide.
+  the file exists, and no criterion described the contents. Prefer an assertion a
+  command can decide, and give every contract the minimum below.
 - **`progress` is what makes a stall detectable.** You cannot read a running
   worker's transcript, so the plan has to say in advance what progress looks like
   on disk. An agent 900 items into a long job and an agent wedged in a dead loop
@@ -116,6 +116,39 @@ model: detailed contracts are what make cheap workers viable.
 - **`route` is a real model, never a placeholder.** Dispatching a unit whose
   route says `local` or `default` runs the graph on whatever the harness happens
   to supply, which is not the run that was approved.
+
+### Output-contract minimums
+
+Every contract carries a minimum, so a unit whose artifact is empty or ambiguous
+**fails loudly instead of passing quietly**. Existence is the weakest evidence
+there is: a file with the right name and a plausible size proves that something
+ran, not that anything usable came out.
+
+One run's `.ingest` step wrote files that reviewed as fine, correct names,
+sensible sizes, well formed on inspection, and every one of them failed at load
+time. Nothing in the contract had said what the loader would need, so the review
+had nothing to fail the unit on, and the defect surfaced a stage later where it
+was expensive to trace back.
+
+A minimum has three parts, and a contract that omits any of them is a
+description again:
+
+```text
+floor      the least an acceptable result contains: rows, records, symbols,
+           test cases, and where useful an upper bound too
+shape      the keys, columns, or signatures the next stage requires by name
+load       the consumer itself accepts it: import it, parse it, open it,
+           run it through the reader that will read it in production
+```
+
+The strongest minimum is the consumer. If the artifact exists to be loaded, the
+unit's green command loads it, and the contract asserts on what came back.
+
+**Ambiguous counts as empty.** If two readers can disagree about whether an
+artifact satisfies a line of the contract, that line has no minimum, and the
+review will settle the disagreement in the worker's favour every time. Write
+each line so a command can decide it, and a unit whose minimum cannot be
+expressed that way is one to stop on, not to dispatch and hope about.
 
 ### Splitting, scopes, and managers
 
@@ -268,7 +301,7 @@ The unit's manager checks, against the contract and not against the summary:
 
 | Check | Against |
 | --- | --- |
-| Artifacts | present, non-empty, in the write scope |
+| Artifacts | present, in the write scope, and past the unit's stated minimum |
 | Output contract | every assertion, against the artifact's **contents** |
 | Verification | the green commands actually run, with real output |
 | Scope | changed paths against the write scope and the never-touch list |
@@ -320,6 +353,7 @@ and the exact decision the user has to make.
 - spawning headless, so no worker is visible or monitorable;
 - dispatching a unit that still carries a placeholder route;
 - marking a unit complete on the worker's own say-so;
+- passing a unit whose artifact was checked for existence and never for contents;
 - raising the budget yourself to clear a stop instead of putting it to the user.
 
 ## Before reporting the run finished
