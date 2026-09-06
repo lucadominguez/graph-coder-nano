@@ -1,15 +1,12 @@
+<p align="center">
+  <img src="assets/banner.png" alt="Graph Coder Nano" width="720">
+</p>
+
 # Graph Coder Nano
 
-Plan once with real effort. Dispatch the work to cheap parallel subagents with
-exact contracts. Review each result once. Ship.
-
-One markdown file. No CLI, no package, no state store, nothing to install but a
-copy. `SKILL.md` is the whole product.
-
-This is [Graph Coder](https://github.com/lucadominguez/graph-coder) reduced to
-the meta system plus the fixes that were paid for in failed runs. Ten phases
-became three, eight skills became one file, and the tooling became a plan you
-edit by hand.
+Part of the [Graph Coder](https://github.com/lucadominguez/graph-coder) family:
+the whole method in one markdown file. No CLI, no package, no state store,
+nothing to install but a copy. `SKILL.md` is the whole product.
 
 ## Install
 
