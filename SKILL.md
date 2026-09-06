@@ -4,11 +4,11 @@ description: Use when a software change should be planned once and then implemen
 ---
 # Graph Coder Nano
 
-Plan once with real effort. Dispatch the work to cheap parallel subagents with
-exact contracts. Review each result once. Ship.
+Write a complete plan, dispatch bounded units to lower-cost workers, and have
+each worker's manager review the result before dependent work starts.
 
-That is the whole method. Everything below it is a rule some run had to fail
-before anyone wrote it down.
+This file describes the workflow. It has no mechanical checks, so the Director
+and managers must apply the rules and record the evidence themselves.
 
 Nothing here needs a CLI, a state file, or an installed package. `PLAN.md` is the
 graph, the ledger, and the status board, and you keep it current by editing it.
@@ -21,7 +21,7 @@ use Graph Coder Lite instead.
 3. EXECUTE   dispatch, review, escalate, finish
 ```
 
-## Three roles, and the boundaries between them are the product
+## Role boundaries
 
 | Role | May do | May never do |
 | --- | --- | --- |
@@ -91,13 +91,13 @@ stop_conditions:
   - The migration did not create the columns this unit was told to use.
 ```
 
-Thirteen fields and a `state` line. A unit missing any of them is not ready.
+Twelve contract fields plus `state`. A unit missing any of them is not ready.
 
 Write every unit so a **fresh agent with no chat history** can execute it from
 that block alone. That bar is the entire reason planning gets the expensive
 model: detailed contracts are what make cheap workers viable.
 
-### The three fields people skip, and what happens
+### Output, progress and routing
 
 - **`output_contract` is a gate, not a description.** `artifacts` names the file;
   the contract says what has to be inside it, as assertions someone else can
@@ -105,10 +105,11 @@ model: detailed contracts are what make cheap workers viable.
   submit a report" is satisfied by a scraper that returns nothing: the code ran,
   the file exists, and no criterion described the contents. Prefer an assertion a
   command can decide, and give every contract the minimum below.
-- **`progress` is what makes a stall detectable.** You cannot read a running
-  worker's transcript, so the plan has to say in advance what progress looks like
-  on disk. An agent 900 items into a long job and an agent wedged in a dead loop
-  are the same observation otherwise: nothing new written. Say the checkpoint
+- **`progress` defines observable checkpoints.** Not every harness exposes a
+  running worker's transcript. Specify what progress looks like on disk, and use
+  live status or transcripts when available. An agent 900 items into a long job
+  and an agent wedged in a dead loop look the same on disk if neither has written
+  a checkpoint. Say the checkpoint
   cadence in the unit's own terms, say whether output accumulates or lands at the
   end, and bound every command in seconds. A worker inside an unbounded blocking
   call cannot report, cannot be told from a hung one, and quietly breaks the whole
@@ -124,11 +125,9 @@ Every contract carries a minimum, so a unit whose artifact is empty or ambiguous
 there is: a file with the right name and a plausible size proves that something
 ran, not that anything usable came out.
 
-One run's `.ingest` step wrote files that reviewed as fine, correct names,
-sensible sizes, well formed on inspection, and every one of them failed at load
-time. Nothing in the contract had said what the loader would need, so the review
-had nothing to fail the unit on, and the defect surfaced a stage later where it
-was expensive to trace back.
+An ingestion artifact can look valid and still fail when its consumer loads it.
+Include the consumer's expected schema and a real load check in the contract,
+so the failure is found before the next stage depends on the artifact.
 
 A minimum has three parts, and a contract that omits any of them is a
 description again:
@@ -146,7 +145,7 @@ unit's green command loads it, and the contract asserts on what came back.
 
 **Ambiguous counts as empty.** If two readers can disagree about whether an
 artifact satisfies a line of the contract, that line has no minimum, and the
-review will settle the disagreement in the worker's favour every time. Write
+review has no reliable basis for a verdict. Write
 each line so a command can decide it, and a unit whose minimum cannot be
 expressed that way is one to stop on, not to dispatch and hope about.
 
@@ -176,14 +175,14 @@ A worker that fails twice and escalates costs more than a capable one that passe
 once: a failed attempt pays for its context twice, its output twice, and a review
 it did not need.
 
-### The budget is a circuit breaker, not an intention
+### Record usage and stop at the budget
 
 Write the numbers in the plan header and stop when they are hit.
 
-A run once spent about a fifth of a weekly frontier allowance producing a
-browser-local notes app. The code was fine. What failed is that the design goal,
-spend premium reasoning once and let cheap models execute, was written as
-guidance, and nothing recorded what was being spent, so nothing could notice.
+Nano does not collect usage or stop workers automatically. Take usage from the
+harness, keep a running total, and stop new dispatches at the agreed limits. If
+usage is unavailable, disclose the gap rather than reporting the run as within
+budget.
 
 - **Dollars are not the scarce resource.** A subscription route has no marginal
   dollar price, which is exactly why a router that scores dollars spends it
@@ -247,9 +246,9 @@ that share no dependency edge because watching one at a time felt easier.
 Spawn **visible**, never headless or inline. A worker you cannot list is one you
 cannot see start, stall, or finish, and the status you report becomes fiction.
 
-Clean up stale agents **narrowly, by id**. Never open with a global cleanup: one
-run did, and stopped every agent on the machine, including other people's. If you
-cannot scope the removal, leave it alone and spawn per unit anyway.
+Clean up stale agents **narrowly, by id**, and only when they belong to this run.
+Global cleanup may stop agents from unrelated projects. If you cannot scope the
+removal, leave it alone and spawn per unit without clearing the shared registry.
 
 ### While workers run, watch two things at once
 
@@ -259,8 +258,8 @@ worker health   is it alive?    running, rate-limited, errored, dead
 ```
 
 Polling only the filesystem is the trap. A worker blocked on a `429` produces no
-files, and so does a worker that is thinking hard. One real run watched a
-directory for two minutes while the worker sat rate-limited the whole time.
+files, and so can a worker that is still reasoning. Check worker health as well
+as filesystem changes before deciding what the silence means.
 
 Read the unit's checkpoint cadence before judging silence: a single-pass unit is
 not stalled when nothing appears, and a unit that promised a write per page and
@@ -343,7 +342,7 @@ yourself is exactly the failure the manager role exists to prevent.
 units keep running. Say what is blocked, what continues, what was already tried,
 and the exact decision the user has to make.
 
-## Each of these is a failed execution, whatever the diff looks like
+## Execution failures
 
 - implementing units yourself in the root session;
 - spawning one subagent for the whole plan instead of one per unit;

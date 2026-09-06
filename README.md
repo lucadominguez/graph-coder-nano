@@ -4,26 +4,43 @@
 
 # Graph Coder Nano
 
-Part of the [Graph Coder](https://github.com/lucadominguez/graph-coder) family:
-the whole method in one markdown file. No CLI, no package, no state store,
-nothing to install but a copy. `SKILL.md` is the whole product.
+Nano is the [Graph Coder](https://github.com/lucadominguez/graph-coder) method
+packaged as one skill file. It tells a coding agent how to plan a change, hand
+bounded tasks to workers, and review their results. There is no CLI, package or
+state store to install.
+
+That makes it easy to try, but there is a trade-off: the checks are instructions,
+not code. You and your agent have to follow them.
 
 ## Install
 
-Copy `SKILL.md` into wherever your harness reads skills from.
+Clone the repository, then copy `SKILL.md` into your harness's skill directory.
+For JCode on Linux or macOS:
 
 ```sh
-cp SKILL.md ~/.claude/skills/graph-coder-nano/SKILL.md
+git clone https://github.com/lucadominguez/graph-coder-nano.git
+cd graph-coder-nano
+mkdir -p ~/.jcode/skills/graph-coder-nano
+cp SKILL.md ~/.jcode/skills/graph-coder-nano/SKILL.md
 ```
+
+For JCode on Windows, open PowerShell in the cloned repository:
 
 ```powershell
-Copy-Item SKILL.md "$env:USERPROFILE\.jcode\skills\graph-coder-nano\SKILL.md"
+$dest = "$env:USERPROFILE\.jcode\skills\graph-coder-nano"
+New-Item -ItemType Directory -Force -Path $dest | Out-Null
+Copy-Item SKILL.md (Join-Path $dest "SKILL.md")
 ```
 
-Then start a run and point the session at it. It also works as a plain prompt:
-paste it in, and it reads the same.
+For Claude Code, use `~/.claude/skills/graph-coder-nano/` instead. Other harnesses
+have their own skill locations. Start a new session if the harness loads skills
+only at startup, then ask it to use `graph-coder-nano` for your change.
 
-## Which one to use
+You can also paste the file as a prompt. The method still requires a harness
+that can spawn workers and expose their status; pasting it does not add those
+capabilities to a model.
+
+## Which edition to use
 
 | | Graph Coder | Lite | Nano |
 | --- | --- | --- | --- |
@@ -31,61 +48,58 @@ paste it in, and it reads the same.
 | Skill files | 8 | 3 | 1 |
 | Unit fields | ~35 | 19 | 13 |
 | Tooling | Python CLI, SQLite ledger, compiled graph | `gcl` CLI, JSON state | none |
-| Checks a bad plan | mechanically | mechanically | you do |
+| Plan checks | Code validates the plan | Code validates the plan | You and the agent check it |
 | Install | pip + skills | pip + skills | copy one file |
 
-Nano when you want the method and your own judgment enforcing it: a run you are
-watching, a repo without Python, a harness that is not yours. **Lite** when you
-want `gcl check` to refuse a plan whose scopes collide or whose units are missing
-contract fields, and `gcl review` to make a completion without evidence
-impossible rather than merely forbidden. **Full** when a run is long enough that
-durable state and recovery earn their weight.
+Use Nano for a run you can supervise, a repository without Python, or a harness
+where installing a CLI is inconvenient. Choose
+[Lite](https://github.com/lucadominguez/graph-coder-lite) if you want checks for
+missing fields, conflicting scopes and review evidence. Use
+[Full](https://github.com/lucadominguez/graph-coder) for longer runs that need a
+compiled graph, routing receipts and durable recovery records.
 
-The rules are the same in all three. Only the enforcement moves.
+## How it works
 
-## What it keeps, and what each one cost
+The Director writes one plan before dispatching work. Each unit names the files
+it may touch, the steps to take, the expected output and the commands that will
+verify it. The user approves the full plan, not a summary.
 
-Nothing in `SKILL.md` is theory. Every rule is there because a run failed without
-it.
+Workers implement their assigned units. A worker's report is a submission, not
+a completion verdict: its manager must check the artifacts and command output
+first. Managers can advise or request repair, but they do not edit the files
+for the worker. Only reviewed work can unblock dependent units.
 
-- **One review gate, and a worker that says it is done is not done.** Completion
-  needs a manager verdict carrying real command output.
-- **The output contract is about contents, not existence.** "Scrape the listings
-  and submit a report" is satisfied by a scraper that returns nothing.
-- **The progress contract makes a stall detectable.** A running worker's
-  transcript cannot be read, so an agent 900 items in and an agent in a dead loop
-  look identical unless the plan said in advance what progress would look like.
-  Every command is bounded in seconds for the same reason.
-- **Concurrent units never share a write scope**, including through a parent
-  directory and including `SRC/Store.py` versus `src/store.py`, which are one
-  file on Windows.
-- **Spawn visible, one subagent per unit, whole round in one message, packets
-  verbatim.** Clean up stale agents narrowly: a global cleanup once stopped every
-  agent on the machine, including unrelated projects.
-- **Watch worker health and the filesystem together.** A rate-limited worker
-  writes nothing, exactly like one that is thinking. One run polled a directory
-  for two minutes while the worker sat on a `429`.
-- **Managers advise and review; they never edit.** A repair is a spawn. A
-  manager that applies the one-line fix has ended the evidence trail.
-- **The escalation ladder is bounded**, and `human_required` blocks that unit's
-  dependents and nothing else.
-- **The budget is a circuit breaker.** A run once spent about a fifth of a weekly
-  frontier allowance producing a browser-local notes app, because the cost design
-  was guidance and nothing recorded what was being spent. Dollars are not the
-  scarce resource: a subscription route has no marginal price, which is why a
-  router that scores dollars will drain it.
+A few rules are worth understanding before the first run:
 
-## What it drops, and what you give up
+- Specify what must be **inside** each artifact. A scraper that returns an empty
+  file can still satisfy a task that only asks for a file.
+- Define progress checkpoints and command timeouts. Use worker status or
+  transcripts when the harness exposes them, alongside filesystem changes.
+  Silence alone does not distinguish useful work from a stall or a rate limit.
+- Give concurrent units separate write scopes. Check parent directories and
+  case-insensitive collisions, such as `SRC/Store.py` versus `src/store.py` on a
+  case-insensitive filesystem.
+- Spawn one visible worker per ready unit and send its packet unchanged. Group
+  independent spawns in one round. Clean up only stale workers that belong to
+  this run, never unrelated agents on the machine.
+- Keep retries and escalation bounded. A `human_required` unit blocks its
+  dependents, not independent branches.
+- Track usage against the plan's budget, including protected provider quotas.
+  A subscription may have no per-request price and still have a limited weekly
+  allowance. Nano has no automatic accounting or budget breaker.
 
-| Dropped | What you lose |
+## What you give up
+
+| Missing tooling | What you need to handle |
 | --- | --- |
-| The `gcl` CLI and its checks | Scope collisions, missing contract fields, and dangling dependencies are now yours to catch by reading. |
-| The JSON state file and `gcl recover` | After a crash you reconstruct the frontier from `PLAN.md` yourself, and nothing stops you trusting a unit whose review never landed. |
-| Approval bound to a contract hash | Whether a post-approval edit voided approval is a judgment call again. |
-| Recorded per-turn spend | The budget is a number you watch, not a breaker that fires. |
-| Separate planner and reviewer skills | The Director holds all three role descriptions at once, so role bleed is easier. |
+| `gcl` CLI checks | Read the plan for scope collisions, missing fields and dangling dependencies. |
+| JSON state and `gcl recover` | Reconstruct the frontier from `PLAN.md` after an interruption; verify that recorded reviews actually happened. |
+| Approval bound to a contract hash | Notice when an edit changes the approved contract and obtain approval again. |
+| Recorded per-turn usage | Record spending and stop when a budget is reached. |
+| Separate planner and reviewer skills | Keep the Director, Manager and Worker responsibilities separate within one skill. |
 
-If those matter for the run in front of you, use Lite. Choosing Nano and then
-pretending the checks happened is worse than either.
+If you need these checks to be enforced by code, use Lite rather than relying
+on Nano to behave as if the tooling were present. There has not been a live
+behavioral evaluation showing that agents reliably follow every rule.
 
-MIT licensed. See `NOTICE` for provenance.
+MIT licensed. See [NOTICE](NOTICE) for provenance.
