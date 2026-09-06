@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Graph Coder Nano" width="900">
+  <img src="https://raw.githubusercontent.com/lucadominguez/graph-coder/main/assets/banner-nano.png" alt="Graph Coder Nano" width="900">
 </p>
 
 # Graph Coder Nano
